@@ -3,8 +3,7 @@ class Node:
         self.name = name
         self.x = x
         self.y = y
-        self.is_acceptance = is_acceptance  # Estado de aceptación
-        self.links = []  # Enlaces conectados a este nodo
+        self.is_acceptance = is_acceptance
 
     def add_link(self, link):
         """Agrega un enlace conectado al nodo."""

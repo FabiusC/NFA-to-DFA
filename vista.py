@@ -1,5 +1,4 @@
 #Vista
-
 import tkinter as tk
 import math
 from utils import LambdaManager
@@ -29,12 +28,6 @@ class AutomataPaint:
         self.acceptance_button = tk.Button(self.toolbar, text="Estado de Aceptación", bg="lightpink", command=self.set_acceptance_mode)
         self.acceptance_button.pack(pady=10, padx=10, fill=tk.X)
 
-        self.delete_button = tk.Button(self.toolbar, text="Borrar", bg="salmon", command=self.set_delete_mode)
-        self.delete_button.pack(pady=10, padx=10, fill=tk.X)
-
-        self.convert_afn_lambda_button = tk.Button(self.toolbar, text="Convertir AFN-λ a AFN", bg="orange", command=self.convert_afn_lambda)
-        self.convert_afn_lambda_button.pack(pady=10, padx=10, fill=tk.X)
-
         self.convert_afn_button = tk.Button(self.toolbar, text="Convertir AFN a AFD", bg="yellow", command=self.convert_afn)
         self.convert_afn_button.pack(pady=10, padx=10, fill=tk.X)
 
@@ -44,7 +37,6 @@ class AutomataPaint:
         # Estructuras internas
         self.controller = None
         self.current_node = None
-        self.delete_mode = False
         self.acceptance_mode = False
 
         # Eventos
@@ -55,28 +47,18 @@ class AutomataPaint:
 
     def set_node_mode(self):
         self.mode.set("Nodo")
-        self.delete_mode = False
         self.acceptance_mode = False
 
     def set_link_mode(self):
         self.mode.set("Enlace")
-        self.delete_mode = False
         self.acceptance_mode = False
 
     def set_acceptance_mode(self):
         self.mode.set("Aceptación")
-        self.delete_mode = False
         self.acceptance_mode = True
 
-    def set_delete_mode(self):
-        self.mode.set("Borrar")
-        self.delete_mode = True
-        self.acceptance_mode = False
-
     def on_click(self, event):
-        if self.delete_mode:
-            self.controller.delete_element(event.x, event.y)
-        elif self.acceptance_mode:
+        if self.acceptance_mode:
             self.set_acceptance_state(event.x, event.y)
         elif self.mode.get() == "Nodo":
             self.controller.add_node(event.x, event.y)
@@ -197,13 +179,6 @@ class AutomataPaint:
         for link in self.controller.model.links:
             for transition in link.transitions:
                 self.draw_link(link.origin.name, link.destination.name, transition)
-
-    def delete_element(self, x, y):
-        """Elimina un nodo o enlace en la posición clicada."""
-        self.controller.delete_element(x, y)
-
-    def convert_afn_lambda(self):
-        self.controller.convert_afn_lambda_to_afn()
 
     def convert_afn(self):
         self.controller.convert_afn_to_afd()

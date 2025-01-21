@@ -1,12 +1,14 @@
 class Link:
-    def __init__(self, origin, destination, transitions=None):
-        self.origin = origin          # Nodo de origen (objeto Node)
-        self.destination = destination  # Nodo de destino (objeto Node)
-        self.transitions = transitions or []  # Lista de cadenas de transición
+    def __init__(self, origin, destination):
+        self.origin = origin
+        self.destination = destination
+        self.transitions = set()
 
-        # Agregar enlace a los nodos correspondientes
-        origin.add_link(self)
-        destination.add_link(self)
+    def add_transitions(self, new_transitions):
+        self.transitions.update(new_transitions)
+
+    def get_transitions(self):
+        return list(self.transitions)
 
     def add_transition(self, transition):
         """Agrega una transición al enlace."""
@@ -17,10 +19,6 @@ class Link:
         """Elimina una transición del enlace."""
         if transition in self.transitions:
             self.transitions.remove(transition)
-
-    def get_transitions(self):
-        """Devuelve las transiciones del enlace como una lista."""
-        return self.transitions
 
     def get_transitions_as_string(self):
         """Devuelve las transiciones como una cadena separada por comas."""
