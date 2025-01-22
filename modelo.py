@@ -77,55 +77,57 @@ class AutomataModel:
             for symbol, next_states in paths.items():
                 print(f"Estado {state} --[{symbol}]--> {next_states}")
 
-    # Convertir AFN a AFD
+    # Convertir AFN-λ a AFD
     def convert_afn_to_afd(self):
         """
-        Convierte un AFN a un AFD.
-        Si el AFN contiene transiciones lambda (ʎ), primero se convierte a un AFN estándar.
+        Convierte un AFN con transiciones lambda a un AFD.
         """
-        def lambda_closure(state):
+        import copy
+
+        def lambda_closure(state, transitions):
             """Calcula el cierre lambda de un estado."""
             closure = set([state])
             stack = [state]
 
             while stack:
                 current = stack.pop()
-                for next_state in self.transitions.get(current, {}).get('ʎ', []):
+                for next_state in transitions.get(current, {}).get('ʎ', []):
                     if next_state not in closure:
                         closure.add(next_state)
                         stack.append(next_state)
 
             return closure
 
+        # Crear copias de datos para no modificar los originales
+        original_transitions = copy.deepcopy(self.transitions)
+        original_accept_states = copy.deepcopy(self.accept_states)
+
         # Verificar si hay transiciones lambda
-        has_lambda = any(
-            'ʎ' in self.transitions[state] for state in self.transitions
-        )
+        has_lambda = any('ʎ' in original_transitions[state] for state in original_transitions)
 
         if has_lambda:
             print("Detectadas transiciones lambda. Convirtiendo AFN-λ a AFN...")
             new_transitions = {}
 
             # Calcular el cierre lambda para todos los estados
-            all_states = set(self.transitions.keys())
-            for paths in self.transitions.values():
+            all_states = set(original_transitions.keys())
+            for paths in original_transitions.values():
                 for next_states in paths.values():
                     all_states.update(next_states)
 
-            lambda_closures = {state: lambda_closure(state) for state in all_states}
+            lambda_closures = {state: lambda_closure(state, original_transitions) for state in all_states}
 
             # Generar las nuevas transiciones eliminando las lambdas
-            for state in self.transitions:
+            for state in original_transitions:
                 new_transitions[state] = {}
-
-                for symbol in self.transitions[state]:
+                for symbol in original_transitions[state]:
                     if symbol == 'ʎ':
                         continue
 
                     # Determinar los estados alcanzables mediante este símbolo
                     reachable_states = set()
                     for closure_state in lambda_closures[state]:
-                        reachable_states.update(self.transitions.get(closure_state, {}).get(symbol, []))
+                        reachable_states.update(original_transitions.get(closure_state, {}).get(symbol, []))
 
                     # Expandir los estados alcanzables por sus cierres lambda
                     final_reachable = set()
@@ -137,21 +139,23 @@ class AutomataModel:
 
             # Identificar los nuevos estados de aceptación
             new_accept_states = set()
-            for state in self.accept_states:
+            for state in original_accept_states:
                 for closure_state in lambda_closures[state]:
                     new_accept_states.add(closure_state)
 
             # Actualizar el modelo con las transiciones sin lambda
             self.transitions = new_transitions
             self.accept_states = new_accept_states
+
             print("Conversión de AFN-λ a AFN completada.")
         else:
             print("No se detectaron transiciones lambda. Continuando con la conversión AFN a AFD...")
 
-        # Conversión de AFN a AFD (ya sea después de convertir AFN-λ a AFN o directamente)
+        # Continuar con la conversión AFN a AFD
+        print("Convirtiendo AFN a AFD...")
         new_states = {}  # Mapea conjuntos de estados del AFN a estados únicos del AFD
         new_transitions = {}  # Transiciones del AFD
-        initial_state = frozenset(["q0"])  # Suponemos que el estado inicial es 'q0'
+        initial_state = frozenset(lambda_closure("q0", self.transitions))  # Cierre lambda del estado inicial
         queue = [initial_state]  # Cola para procesar conjuntos de estados
         new_states[initial_state] = "k0"  # Mapear el conjunto inicial al estado 'k0'
 
@@ -190,7 +194,6 @@ class AutomataModel:
         for paths in new_transitions.values():
             all_states.update(paths.values())
 
-        # Asignar las posiciones a todos los estados del AFD para evitar errores
         self.all_states = all_states  # Guardar estados del AFD
 
         # Imprimir la tabla de transiciones resultante
@@ -206,18 +209,37 @@ class AutomataModel:
         self.display_graph()
 
 
-
     def display_graph(self):
-        """Muestra el autómata como un grafo usando matplotlib y networkx."""
+        """Muestra el autómata como un grafo usando matplotlib y networkx, e imprime la tabla de transiciones."""
+        import pandas as pd  # Para crear una tabla de transiciones legible
         graph = nx.DiGraph()
+
+        # Calcular todos los estados si no se definieron previamente
+        if not hasattr(self, 'all_states') or not self.all_states:
+            self.all_states = set(self.transitions.keys())
+            for paths in self.transitions.values():
+                for next_states in paths.values():
+                    if isinstance(next_states, list):
+                        self.all_states.update(",".join(sorted(next_states)) for next_states in paths.values())
+                    else:
+                        self.all_states.add(next_states)
+
+        # Convertir todos los estados a cadenas para garantizar que sean hashables
+        self.all_states = {",".join(sorted(state)) if isinstance(state, list) else state for state in self.all_states}
 
         # Agregar nodos para todos los estados del AFD
         for state in self.all_states:
             graph.add_node(state)
 
+        # Preparar datos para la tabla de transiciones
+        transition_table = []
+
         # Agregar aristas al grafo con etiquetas únicas
         for state, paths in self.transitions.items():
+            # Asegurar que los estados sean hashables
+            state = ",".join(sorted(state)) if isinstance(state, list) else state
             for symbol, next_state in paths.items():
+                next_state = ",".join(sorted(next_state)) if isinstance(next_state, list) else next_state
                 if graph.has_edge(state, next_state):
                     # Concatenar símbolos en una única etiqueta si ya existe una arista
                     current_label = graph[state][next_state]['label']
@@ -225,6 +247,14 @@ class AutomataModel:
                         graph[state][next_state]['label'] = f"{current_label}, {symbol}"
                 else:
                     graph.add_edge(state, next_state, label=symbol)
+                
+                # Agregar datos a la tabla de transiciones
+                transition_table.append({'State': state, 'Input': symbol, 'Next State': next_state})
+
+        # Mostrar la tabla de transiciones
+        df = pd.DataFrame(transition_table)
+        print("\nTabla de transiciones:")
+        print(df)
 
         # Generar posiciones para todos los nodos
         pos = nx.spring_layout(graph)
@@ -258,6 +288,7 @@ class AutomataModel:
         for source, target in graph.edges():
             if (source, target) not in drawn_edges:
                 if source == target:
+                    print(f"Transición recursiva: {source} -> {target}")
                     # Dibujar arista recursiva
                     nx.draw_networkx_edges(
                         graph, pos,
